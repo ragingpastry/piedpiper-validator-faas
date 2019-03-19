@@ -39,4 +39,5 @@ def validate(config):
        result = True
     except ValidationError as err:
         result = err
+
     return result

@@ -12,6 +12,14 @@ def handle(request):
         req (str): request body
     """
 
+    config_keys = [
+        {'pi_lint_pipe_vars': 'pi_lint.pi_lint'},
+        {'pi_validate_pipe_vars': 'pi_validate.pi_validate'},
+        {'file_config': 'pi_validate.pi_files'},
+        {'ci': 'pi_ci_gitlab.pi_ci_gitlab'}
+    ]
+
+
     validation_list = []
     for run_vars in build_run_vars(request):
         pipe_configs = yaml.load(run_vars)
@@ -22,30 +30,15 @@ def handle(request):
     validation_results = []
     for config in validation_list:
         for key, value in config.items():
-            if key == 'pi_lint_pipe_vars':
+            if key in {key for dict in config_keys for key in dict.keys()} and key != 'ci':
                 temp_dict = {key:value}
-                validation_module = getattr(importlib.import_module('function.validations.pipes.pi_lint.pi_lint'), 'validate')
+                [module_name] = [config_key[key] for config_key in config_keys if key in config_key.keys()]
+                validation_module = getattr(importlib.import_module(f'function.validations.pipes.{module_name}'), 'validate')
                 result = validation_module(temp_dict)
                 if result == True:
-                    validation_results.append({key:True})
+                    validation_results.append({key: {'errors': False}})
                 else:
-                    result = validation_results.append({key:str(result.messages)})
-            if key == 'pi_validate_pipe_vars':
-                temp_dict = {key:value}
-                validation_module = getattr(importlib.import_module('function.validations.pipes.pi_validate.pi_validate'), 'validate')
-                result = validation_module(temp_dict)
-                if result == True:
-                    result = validation_results.append({key:True})
-                else:
-                    result = validation_results.append({key:str(result.messages)})
-            if key == 'file_config':
-                temp_dict = {key:value}
-                validation_module = getattr(importlib.import_module('function.validations.pipes.pi_validate.pi_files'), 'validate')
-                result = validation_module(temp_dict)
-                if result == True:
-                    result = validation_results.append({key:True})
-                else:
-                    result = validation_results.append({key:str(result.messages)})
+                    validation_results.append({key: {'errors': str(result.messages)}})
             if key =='ci':
                 ci_result = False
                 ci_results = []
@@ -54,29 +47,27 @@ def handle(request):
                         validation_module = getattr(importlib.import_module('function.validations.pipes.pi_gitlab_ci.pi_gitlab_ci'), 'validate')
                         result = validation_module(ci_key.capitalize(), {'stages':ci_value})
                         if result == True:
-                            result = ci_results.append({ci_key:True})
+                            ci_results.append({ci_key: {'errors': False}})
                         else:
-                            result = ci_results.append({ci_key:str(result.messages)})
+                            ci_results.append({ci_key: {'errors': str(result.messages)}})
                     elif ci_key == 'include':
                         temp_dict = {ci_key:ci_value}
                         validation_module = getattr(importlib.import_module('function.validations.pipes.pi_gitlab_ci.pi_gitlab_ci'), 'validate')
                         result = validation_module(ci_key.capitalize(), temp_dict)
                         if result == True:
-                            result = ci_results.append({ci_key:True})
+                            ci_results.append({ci_key:{'errors': False}})
                         else:
-                            result = ci_results.append({ci_key:str(result.messages)})
+                            ci_results.append({ci_key:{'errors': str(result.messages)}})
 
                 for item in ci_results:
                     for value in item.values():
-                        if value == True:
-                            ci_result = True
+                        if value['errors'] == False:
+                            ci_result = {'errors': False}
                         else:
-                            ci_result = ci_results
+                            ci_result = {'errors': ci_results}
 
                 validation_results.append({key:ci_result})
 
-    #raise ValueError(validation_results)
     return validation_results
-    #return '\n'.join([yaml.dump(result) for result in validation_results])
 
 
