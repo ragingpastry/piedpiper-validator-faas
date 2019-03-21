@@ -1,14 +1,7 @@
-import tempfile
+import git
 import os
+import tempfile
 import zipfile
-
-from marshmallow import fields
-from marshmallow import Schema
-from marshmallow import RAISE
-from marshmallow import ValidationError
-from marshmallow import validates
-
-import marshmallow
 
 
 def build_temp_zipfiles(request):
@@ -21,10 +14,12 @@ def build_temp_zipfiles(request):
         zip_files.append((tmp_file.name, temp_directory))
     return zip_files
 
+
 def unzip_files(zip_file, temp_directory):
     zip_ref = zipfile.ZipFile(zip_file, 'r')
     zip_ref.extractall(temp_directory)
     zip_ref.close()
+
 
 def build_run_vars(request):
     receive_zip_files = build_temp_zipfiles(request)
@@ -36,25 +31,11 @@ def build_run_vars(request):
                     yield runvars.read()
 
 
-class PiGlobalVarsSchema(Schema):
-    project_name = fields.Str(required=True)
-    vars_dir = fields.Str(required=True)
-    version = fields.Str(required=True)
+def clone_repository(remote, destination, branch='master'):
+    repo = git.Repo.clone_from(
+        remote,
+        destination,
+        branch=branch
+    )
+    return repo
 
-    @validates('project_name')
-    def validate_project_name(self, value):
-        if value != 'cppp_and_python_project':
-            raise ValueError('Project name must be cpp_and_python_project')
-
-
-class BaseSchema(Schema):
-    pi_global_vars = fields.Nested(PiGlobalVarsSchema)
-
-def validate(config):
-    schema = BaseSchema(unknown=RAISE)
-    try:
-       _ = schema.load(config)
-       result = True
-    except ValidationError as err:
-        result = err
-    return result
