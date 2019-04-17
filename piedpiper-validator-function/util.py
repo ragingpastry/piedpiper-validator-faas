@@ -1,5 +1,4 @@
 import git
-import os
 import tempfile
 import zipfile
 
@@ -25,10 +24,11 @@ def build_run_vars(request):
     receive_zip_files = build_temp_zipfiles(request)
     for zip_file, temp_directory in receive_zip_files:
         unzip_files(zip_file, temp_directory.name)
-        for root, dirs, files in os.walk(temp_directory.name):
-            for file in files:
-                with open(os.path.join(root, file)) as runvars:
-                    yield runvars.read()
+        try:
+            with open(f'{temp_directory.name}/run_vars.yml') as runvars:
+                return runvars.read()
+        except FileNotFoundError as e:
+            return f'File not found. {e}'
 
 
 def clone_repository(remote, destination, branch='master'):
@@ -38,4 +38,3 @@ def clone_repository(remote, destination, branch='master'):
         branch=branch
     )
     return repo
-
