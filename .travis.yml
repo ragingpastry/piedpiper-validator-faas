@@ -1,0 +1,14 @@
+---
+dist: xenial
+language: python
+python: 3.7
+services:
+ - docker
+
+before_install:
+ - bash tools/scripts/setup-env.sh
+ - sudo pip install --upgrade pip setuptools tox
+
+install: pip install tox-travis
+
+script: tox

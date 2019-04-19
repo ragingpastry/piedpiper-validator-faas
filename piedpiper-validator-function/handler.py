@@ -19,14 +19,10 @@ def handle(request):
         {'ci': ['pi_ci_gitlab', 'pi_ci_gitlab']}
     ]
 
-    validation_repository = 'https://github.com/AFCYBER-DREAM/piedpiper-project-validations.git'
+    validation_repo = 'https://github.com/AFCYBER-DREAM/piedpiper-project-validations.git'
 
-    validation_dict = {}
     validation_results = []
-    for run_vars in build_run_vars(request):
-        pipe_configs = yaml.load(run_vars)
-        for pipe, config in pipe_configs.items():
-            validation_dict.update({pipe: config})
+    validation_dict = yaml.safe_load(build_run_vars(request))
     try:
         policy_version = validation_dict['pi_validate_pipe_vars']['policy']['version']
         project_name = validation_dict['pi_global_vars']['project_name']
@@ -43,7 +39,7 @@ def handle(request):
     try:
         with tempfile.TemporaryDirectory() as temp_dir:
             repo = git.Repo.clone_from(
-                validation_repository,
+                validation_repo,
                 temp_dir,
                 branch='master'
             )
@@ -52,27 +48,40 @@ def handle(request):
                 validation_results.append(
                     {
                         'repo': {
-                            'errors': f'No project named {project_name} in {validation_repository}'
+                            'errors': f'No project named {project_name}'
+                                      f'in {validation_repo}'
                         }
                     }
                 )
                 return validation_results
-            elif not os.path.isdir(f'{repo.working_tree_dir}/{project_name}/releases/{policy_version}'):
+            elif not os.path.isdir(
+                    f'{repo.working_tree_dir}/{project_name}/releases/{policy_version}'
+            ):
                 validation_results.append(
                     {
                         'repo': {
-                            'errors': f'No release {policy_version} found in {validation_repository}'
+                            'errors': f'No release {policy_version}'
+                                      f'found in {validation_repo}'
                         }
                     }
                 )
                 return validation_results
 
-            module_directory = f'{repo.working_tree_dir}/{project_name}/releases/{policy_version}/pipes/'
+            module_directory = f'{repo.working_tree_dir}/{project_name}/' \
+                               f'releases/{policy_version}/pipes/'
 
             for key, value in validation_dict.items():
-                if key in {key for dict in config_keys for key in dict.keys()} and key != 'ci':
+                if key in {
+                    key
+                    for dict in config_keys
+                    for key in dict.keys()
+                } and key != 'ci':
                     temp_dict = {key: value}
-                    [module_name] = [config_key[key] for config_key in config_keys if key in config_key.keys()]
+                    [module_name] = [
+                        config_key[key]
+                        for config_key in config_keys
+                        if key in config_key.keys()
+                    ]
                     loader = importlib.machinery.SourceFileLoader(
                         module_name[1],
                         f'{module_directory}/{module_name[0]}/{module_name[1]}.py'
@@ -81,11 +90,11 @@ def handle(request):
                     module = importlib.util.module_from_spec(spec)
                     loader.exec_module(module)
                     result = module.validate(temp_dict)
-                    if result == True:
+                    if isinstance(result, Exception):
                         validation_results.append(
                             {
                                 key: {
-                                    'errors': False
+                                    'errors': str(result.messages)
                                 }
                             }
                         )
@@ -93,7 +102,7 @@ def handle(request):
                         validation_results.append(
                             {
                                 key: {
-                                    'errors': str(result.messages)
+                                    'errors': False
                                 }
                             }
                         )
@@ -109,12 +118,15 @@ def handle(request):
                             spec = importlib.util.spec_from_loader(loader.name, loader)
                             module = importlib.util.module_from_spec(spec)
                             loader.exec_module(module)
-                            result = module.validate(ci_key.capitalize(), {'stages': ci_value})
-                            if result == True:
+                            result = module.validate(
+                                ci_key.capitalize(),
+                                {'stages': ci_value}
+                            )
+                            if isinstance(result, Exception):
                                 ci_results.append(
                                     {
                                         ci_key: {
-                                            'errors': False
+                                            'errors': str(result.messages)
                                         }
                                     }
                                 )
@@ -122,7 +134,7 @@ def handle(request):
                                 ci_results.append(
                                     {
                                         ci_key: {
-                                            'errors': str(result.messages)
+                                            'errors': False
                                         }
                                     }
                                 )
@@ -136,15 +148,7 @@ def handle(request):
                             module = importlib.util.module_from_spec(spec)
                             loader.exec_module(module)
                             result = module.validate(ci_key.capitalize(), temp_dict)
-                            if result == True:
-                                ci_results.append(
-                                    {
-                                        ci_key: {
-                                            'errors': False
-                                        }
-                                    }
-                                )
-                            else:
+                            if isinstance(result, Exception):
                                 ci_results.append(
                                     {
                                         ci_key: {
@@ -152,10 +156,18 @@ def handle(request):
                                         }
                                     }
                                 )
+                            else:
+                                ci_results.append(
+                                    {
+                                        ci_key: {
+                                            'errors': False
+                                        }
+                                    }
+                                )
 
                     for item in ci_results:
                         for value in item.values():
-                            if value['errors'] == False:
+                            if not value['errors']:
                                 ci_result = {'errors': False}
                             else:
                                 ci_result = {'errors': ci_results}
