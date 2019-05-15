@@ -7,3 +7,7 @@ functions:
     lang: python3-flask
     handler: ./piedpiper-validator-function
     image: piedpiper-validator-function:latest
+  piedpiper-validator-gateway:
+    lang: python3-flask
+    handler: ./piedpiper-validator-gateway
+    image: piedpiper-validator-gateway:latest

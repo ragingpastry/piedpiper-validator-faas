@@ -3,8 +3,13 @@ import tempfile
 import os
 import git
 import yaml
-from .util import build_run_vars
+from .util import build_run_vars, request_new_task_id, download_artifact, upload_artifact, notify_gman
+from .config import Config
 
+gman_url = Config['gman']['url']
+access_key = Config['storage']['access_key']
+secret_key = Config['storage']['secret_key']
+storage_url = Config['storage']['url']
 
 def handle(request):
     """handle a request to the function
@@ -12,6 +17,20 @@ def handle(request):
         req (str): request body
     """
 
+    artifact_url = request.get_json().get('artifact_url')
+    run_id = request.get_json().get('run_id')
+    project = request.get_json().get('project')
+    task_id = request.get_json().get('task_id')
+
+    validation_artifact = {}
+
+
+    ## Download artifact from artifact URL
+    temp_directory = tempfile.TemporaryDirectory()
+    download_artifact(run_id, 'validation.zip', f'{temp_directory.name}/validation.zip', storage_url, access_key, secret_key)
+    ## Process
+    ## Upload logs to artman
+    ## Tell gman we are done executing
     config_keys = [
         {'pi_style_pipe_vars': ['pi_style', 'pi_style']},
         {'pi_validate_pipe_vars': ['pi_validate', 'pi_validate']},
@@ -22,7 +41,11 @@ def handle(request):
     validation_repo = 'https://github.com/AFCYBER-DREAM/piedpiper-project-validations.git'
 
     validation_results = []
-    validation_dict = yaml.safe_load(build_run_vars(request))
+    validation_dict = yaml.safe_load(
+        build_run_vars(
+            f'{temp_directory.name}/validation.zip',
+            temp_directory.name)
+    )
     try:
         policy_version = validation_dict['pi_validate_pipe_vars']['policy']['version']
         project_name = validation_dict['pi_global_vars']['project_name']
@@ -174,8 +197,6 @@ def handle(request):
 
                     validation_results.append({key: ci_result})
 
-            return validation_results
-
     except Exception as e:
         validation_results.append(
             {
@@ -184,4 +205,10 @@ def handle(request):
                 }
             }
         )
-        return validation_results
+
+    finally:
+        validation_log_file = f'{temp_directory.name}/validation.log'
+        with open(validation_log_file, 'w') as log_file:
+            log_file.write(yaml.safe_dump(validation_results))
+        upload_artifact(run_id, 'validation.log', validation_log_file, storage_url, access_key, secret_key)
+        notify_gman(task_id, status='complete')
