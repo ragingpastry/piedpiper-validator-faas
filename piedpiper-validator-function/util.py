@@ -1,6 +1,7 @@
 import git
 import zipfile
 import requests
+import yaml
 import json
 from minio import Minio
 from minio.error import (ResponseError, BucketAlreadyOwnedByYou,
@@ -8,6 +9,16 @@ from minio.error import (ResponseError, BucketAlreadyOwnedByYou,
 from .config import Config
 
 gman_url = Config.get('gman').get('url')
+
+
+def read_secrets():
+    secrets = {}
+    with open('/var/openfaas/secrets/storage-access-key') as access_key:
+        secrets.update({'access_key': access_key.read().strip('\n')})
+    with open('/var/openfaas/secrets/storage-secret-key') as secret_key:
+        secrets.update({'secret_key': secret_key.read().strip('\n')})
+
+    return secrets
 
 
 def upload_artifact(bucket_name, object_name, file_path, url, access_key, secret_key):
@@ -54,39 +65,18 @@ def clone_repository(remote, destination, branch='master'):
     return repo
 
 def query_gman_for_task(task_id):
-    r = requests.get(f'{gman_url}/gman/taskid/{task_id}')
+    r = requests.get(f'{gman_url}/gman/{task_id}')
     r.raise_for_status()
     return r.json()
 
 
-def notify_gman(task_id, status=None):
-
-    notify_data = {
-        'task': {
-            'task_id': task_id,
+def update_task_id_status(gman_url=None, task_id=None, status=None, message=None):
+    try:
+        data = {
+            'message': message,
             'status': status,
         }
-    }
-
-    r = requests.put(f'{gman_url}/gman/taskid/{task_id}', data=json.dumps(notify_data))
-    r.raise_for_status()
-    return r.json()
-
-
-def request_new_task_id(run_id=None,
-                        gman_url=None,
-                        project=None,
-                        caller='validator_func',):
-    try:
-        (f'Requesting new taskID from gman at {gman_url}')
-        data = {
-            'run_id': run_id,
-            'caller': caller,
-            'project': project,
-            'message': 'Init validator_function',
-            'status': 'executing',
-        }
-        r = requests.post(f"{gman_url}/gman", data=json.dumps(data))
+        r = requests.put(f"{gman_url}/gman/{task_id}", data=json.dumps(data))
     except requests.exceptions.RequestException as e:
         message = f"Failed to request new taskID from gman at {gman_url}. \n\n{e}"
         raise

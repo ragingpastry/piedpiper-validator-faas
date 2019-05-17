@@ -3,12 +3,10 @@ import tempfile
 import os
 import git
 import yaml
-from .util import build_run_vars, request_new_task_id, download_artifact, upload_artifact, notify_gman
+from .util import build_run_vars, update_task_id_status, download_artifact, upload_artifact, read_secrets
 from .config import Config
 
 gman_url = Config['gman']['url']
-access_key = Config['storage']['access_key']
-secret_key = Config['storage']['secret_key']
 storage_url = Config['storage']['url']
 
 def handle(request):
@@ -20,14 +18,20 @@ def handle(request):
     artifact_url = request.get_json().get('artifact_url')
     run_id = request.get_json().get('run_id')
     project = request.get_json().get('project')
-    task_id = request.get_json().get('task_id')
+    task_id = request.get_json()['task_id']
+    hash = request.get_json().get('hashsum')
 
     validation_artifact = {}
 
+    access_key = read_secrets().get('access_key')
+    secret_key = read_secrets().get('secret_key')
+
+    update_task_id_status(gman_url=gman_url, status='received', task_id=task_id,
+                          message='Received execution task from validator gateway')
 
     ## Download artifact from artifact URL
     temp_directory = tempfile.TemporaryDirectory()
-    download_artifact(run_id, 'validation.zip', f'{temp_directory.name}/validation.zip', storage_url, access_key, secret_key)
+    download_artifact(run_id, 'artifacts/validation.zip', f'{temp_directory.name}/validation.zip', storage_url, access_key, secret_key)
     ## Process
     ## Upload logs to artman
     ## Tell gman we are done executing
@@ -49,7 +53,9 @@ def handle(request):
     try:
         policy_version = validation_dict['pi_validate_pipe_vars']['policy']['version']
         project_name = validation_dict['pi_global_vars']['project_name']
-    except KeyError:
+    except KeyError as e:
+        update_task_id_status(gman_url=gman_url, task_id=task_id, status='failed',
+                              message=f'Invalid key in run_vars.\e{e}')
         validation_results.append(
             {
                 'pre-validation': {
@@ -210,5 +216,6 @@ def handle(request):
         validation_log_file = f'{temp_directory.name}/validation.log'
         with open(validation_log_file, 'w') as log_file:
             log_file.write(yaml.safe_dump(validation_results))
-        upload_artifact(run_id, 'validation.log', validation_log_file, storage_url, access_key, secret_key)
-        notify_gman(task_id, status='complete')
+        upload_artifact(run_id, 'artifacts/validation.log', validation_log_file, storage_url, access_key, secret_key)
+        update_task_id_status(gman_url=gman_url, task_id=task_id,
+                              status='completed', message='Validator execution complete')

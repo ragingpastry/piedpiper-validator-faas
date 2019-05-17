@@ -24,7 +24,7 @@ def fix_transfer_encoding():
 @app.route("/<path:path>", methods=["POST", "GET"])
 def main_route(path):
     ret = handler.handle(request)
-    return jsonify(result=ret)
+    return jsonify(ret)
 
 if __name__ == '__main__':
     #app.run(host='0.0.0.0', port=5000, debug=False)
