@@ -1,6 +1,7 @@
 # PiedPiper Validator Function
+[![Build Status](https://travis-ci.org/AFCYBER-DREAM/piedpiper-validator-faas.svg?branch=master)](https://travis-ci.org/AFCYBER-DREAM/piedpiper-validator-faas)
 
-PiedPiper Validator 
+PiedPiper Validator
 
 ### Table of Contents
 
@@ -78,7 +79,7 @@ and load the required validation modules located in the `project_name`/`version`
 
 Project structure for Project Validations git repository looks like the following:
 ```
-├── project_name 
+├── project_name
 │   └── releases
 │       ├── 0.0.0
 │       │   ├── __init__.py
@@ -134,7 +135,7 @@ subdirectories named after the SymVer version number. This number will
 be used in PiCli's validator pipe to target specific versions of validations.
 
 Under the version directory there will be a pipes directory which contains
-subdirectories for every pipe validation. 
+subdirectories for every pipe validation.
 
 #### Validations
 Validations are run using the [Marshmallow](https://marshmallow.readthedocs.io/en/3.0/)
@@ -142,7 +143,7 @@ library. We depend on functionality from the 3.0 pre-release version.
 
 Every module under `pipes/` must provide a `validate` function which will
 take one parameter, the dict to be validated.
- 
+
 
 
 
